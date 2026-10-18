@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng Hiển Thị Trạng Thái Thùng Rác AI - NLS_TN01</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #0b132b; 
+            color: #ffffff; 
+            margin: 0; 
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .dashboard { 
+            width: 100%; 
+            max-width: 1024px; /* Tối ưu kích thước chiều ngang máy tính bảng */
+            background: #1c2541; 
+            padding: 30px; 
+            border-radius: 24px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #3a506b;
+        }
+        h1 { 
+            color: #4cc9f0; 
+            margin: 0 0 5px 0; 
+            font-size: 28px; 
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .sub-title {
+            color: #64dfdf;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 30px;
+        }
+        
+        /* Bố cục chia lưới 2 cột lớn hiển thị trực quan trên Tablet */
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 25px;
+        }
+        
+        /* Khung hiển thị Kết quả AI khổng lồ */
+        .sl-rac{
+            grid-column: 1 / -1;
+            text-align: center;
+            font-size:25px;
+            font-weight: bold;
+
+        }
+        .card-main {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #3a0ca3, #4361ee);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+        .card-main h2 { margin: 0 0 10px 0; font-size: 20px; color: #e0aaff; }
+        #txtKetQuaAI { 
+            font-size: 40px; 
+            font-weight: 900; 
+            margin: 10px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            color: #fff;
+        }
+        #txtTiLe { font-size: 22px; color: #ccff33; font-weight: bold; }
+
+        /* Khung hiển thị các thông số phụ */
+        .card-sub {
+            background: #222e50;
+            padding: 25px;
+            border-radius: 18px;
+            border-left: 6px solid #4cc9f0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .card-sub h3 { margin: 0 0 8px 0; font-size: 18px; color: #9a8c98; }
+        .value { font-size: 38px; font-weight: bold; color: #5bc0be; }
+        
+        .card-sub.time-card { border-left-color: #f72585; }
+        #txtThoiGian { font-size: 22px; color: #ffb703; }
+
+        .status-footer {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #6c757d;
+            border-top: 1px solid #3a506b;
+            padding-top: 15px;
+        }
+        #txtStatusNet { color: #2a9d8f; font-weight: bold; }
+        .card-sl{
+            text-align: center;
+            background: linear-gradient(to top ,rgb(37, 37, 247),rgb(8, 160, 231));
+            /* background: linear-gradient(135deg, #3a0ca3, #4361ee); */
+            border-radius: 20px;
+        }
+        .rb{
+            grid-column: 1 / -1;
+            text-align: center;
+        }
+        .btn-reset{
+            padding:18px 45px;
+            font-size:24px;
+            font-weight:bold;
+            border:none;
+            border-radius:15px;
+            background:#e63946;
+            color:white;
+            cursor:pointer;
+            transition:0.3s;
+        }
+        .btn-reset:hover{
+            background:#c1121f;
+            transform:scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <h1>Thùng rác thông minh ứng dụng trí tuệ nhân tạo 2.0</h1>
+
+    <div class="grid-container">
+        <div class="card-main">
+            <div id="txtKetQuaAI">Chờ dữ liệu...</div>
+        </div>
+        <div class="sl-rac">SỐ LƯỢNG RÁC</div> 
+        <div class="card-sl">
+            <h3>Rác vô cơ</h3>
+            <div id="slvc" class="value">-0-</div>
+        </div>
+        <div class="card-sl">
+            <h3>Rác hữu cơ</h3>
+            <div id="slhc" class="value">-0-</div>
+        </div>
+        <div class="card-sl">
+            <h3>Rác khác</h3>
+            <div id="slrk" class="value">-0-</div>
+        </div>
+
+
+
+
+
+
+
+
+
+
+
+        
+        <div class="card-sub card-main-sub time-card" style="grid-column: 1 / -1;">
+            <h3>🕒 RÁC ĐƯỢC BỎ LẦN CUỐI</h3>
+            <div id="txtThoiGian">Đang đồng bộ thời gian thực...</div>
+        </div>
+        <div class="rb">
+            <button id="btnReset" class="btn-reset" onclick="lay_rac()">🗑️ Lấy rác</button>
+        </div>
+
+    </div>
+
+    <!-- <div class="status-footer">
+        Trạng thái kết nối Firebase: <span id="txtStatusNet">🔄 ĐANG KẾT NỐI...</span>
+    </div> -->
+</div>
+
+<script>
+    // 1. CẤU HÌNH FIREBASE (Dữ liệu cấu hình chính xác từ dự án thung-rac-ch4 của bạn)
+    const firebaseConfig = {
+        apiKey: "AIzaSyCL8Rh8rzffeWnvubisPX-OXjpItEN-9WI",
+        authDomain: "thung-rac-ch4.firebaseapp.com",
+        databaseURL: "https://thung-rac-ch4-default-rtdb.firebaseio.com",
+        projectId: "thung-rac-ch4",
+        storageBucket: "thung-rac-ch4.firebasestorage.app",
+        messagingSenderId: "375353797135",
+        appId: "1:375353797135:web:0ec2891d5366b2bf1e517a",
+        measurementId: "G-9WHNCZ0XKD"
+    };
+
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    function lay_rac(){
+        const mk = prompt("Nhập mật khẩu:");
+        if (mk === null) return;
+        if (mk !="12345"){
+            alert("Sai mật khẩu");
+            return;
+        }
+        db.collection("du_lieu_tram").doc("thong_tin_hien_tai").set({
+            ai_result : "",
+            rac_vo_co : 0,
+            rac_huu_co: 0,
+            rac_khac  : 0
+        });
+    }
+
+
+
+
+    
+
+    // 2. LẮNG NGHE DỮ LIỆU REAL-TIME TỪ FIREBASE ĐỔ VỀ
+    function batDauLangNgheFirebase() {
+        db.collection("du_lieu_tram").doc("thong_tin_hien_tai").onSnapshot(function(doc) {
+            if (doc.exists) {
+                const data = doc.data();
+                
+                // Trích xuất dữ liệu dựa theo các trường bạn gửi từ file main3.js lên
+                const sl_hc   = data.rac_huu_co || "0";
+                const sl_vc   = data.rac_vo_co || "0";
+                const sl_rk   = data.rac_khac || "0";
+                
+                let ketQuaAI = data.ai_result || "Không rõ";
+                if (ketQuaAI == "A") ketQuaAI = "Rác Vô Cơ";
+                if (ketQuaAI == "B") ketQuaAI = "Rác Hữu Cơ";
+                if (ketQuaAI == "C") ketQuaAI = "Rác Khác";
+                
+                const tiLe     = data.ti_le ? data.ti_le.toFixed(1) : "0.0";
+                const thoiGian = data.time ? data.time.toDate().toLocaleString('vi-VN') : "Vừa xong";
+                
+                // Lấy thêm thông số môi trường (nếu có gửi kèm)
+
+                // Đẩy dữ liệu ra màn hình hiển thị HTML trực quan
+                document.getElementById("txtKetQuaAI").innerText = ketQuaAI;
+                document.getElementById("slhc")       .innerText = sl_hc;
+                document.getElementById("slvc")       .innerText = sl_vc;
+                document.getElementById("slrk")       .innerText = sl_rk;
+                
+                document.getElementById("txtThoiGian").innerText = thoiGian;
+                
+            } else {
+                document.getElementById("txtKetQuaAI").innerText = "Chưa có rác";
+                document.getElementById("txtThoiGian").innerText = "Đang đợi thùng rác gửi dữ liệu bản ghi đầu tiên...";
+            }
+        }, function(error) {
+            console.error("Lỗi đường truyền Firebase: ", error);
+        });
+    }
+
+    // Tự động chạy hàm lắng nghe ngay khi màn hình tablet load xong ứng dụng web
+    window.onload = batDauLangNgheFirebase;
+</script>
+
+</body>
+</html>
