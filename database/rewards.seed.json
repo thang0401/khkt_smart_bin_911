@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "points_by_waste_code": { "A": 2, "B": 3, "C": 1 },
+  "labels_by_waste_code": { "A": "Rác vô cơ", "B": "Rác hữu cơ", "C": "Rác khác" },
+  "session_idle_seconds": 120,
+  "session_warning_seconds": 15,
+  "require_device_done": true
+}

@@ -1,0 +1,68 @@
+rules_version = '2';
+
+// BẢN THỬ NGHIỆM: web chưa đăng nhập. Chỉ dùng với dữ liệu mẫu.
+// Giới hạn collection/field; chưa chứng minh được DONE đến từ phần cứng đáng tin cậy.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /students/{studentCode} {
+      allow get: if true;
+      allow list, create, delete: if false;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['points_balance', 'points_earned', 'updated_at'])
+        && request.resource.data.points_balance is int
+        && request.resource.data.points_earned is int
+        && request.resource.data.points_balance >= resource.data.points_balance
+        && request.resource.data.points_earned >= resource.data.points_earned;
+      match /point_history/{eventId} {
+        allow read: if true;
+        allow create: if request.resource.data.event_id == eventId
+          && request.resource.data.type == 'earn'
+          && request.resource.data.status == 'confirmed'
+          && request.resource.data.points_delta is int
+          && request.resource.data.points_delta >= 0;
+        allow update, delete: if false;
+      }
+    }
+    match /reward_settings/{settingId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+    match /bin_stations/{stationId} {
+      allow get: if stationId == 'NLS_TN01';
+      allow create, update: if stationId == 'NLS_TN01'
+        && request.resource.data.keys().hasOnly(['active_session_id', 'pending_event_id', 'last_event_id', 'updated_at']);
+      allow list, delete: if false;
+    }
+    match /bin_sessions/{sessionId} {
+      allow get: if true;
+      allow create: if request.resource.data.station_id == 'NLS_TN01'
+        && request.resource.data.status == 'active'
+        && request.resource.data.points_earned == 0
+        && request.resource.data.items_count == 0;
+      allow update: if request.resource.data.station_id == resource.data.station_id
+        && request.resource.data.student_code == resource.data.student_code
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'ended_at', 'close_reason', 'last_activity_at', 'expires_at',
+          'points_earned', 'items_count', 'latest_points'
+        ]);
+      allow list, delete: if false;
+    }
+    match /disposal_events/{eventId} {
+      allow get: if true;
+      allow create: if request.resource.data.event_id == eventId
+        && request.resource.data.station_id == 'NLS_TN01'
+        && request.resource.data.waste_code in ['A', 'B', 'C']
+        && request.resource.data.status == 'pending'
+        && request.resource.data.unit_points is int
+        && request.resource.data.unit_points >= 0;
+      allow update: if resource.data.status == 'pending'
+        && request.resource.data.status in ['confirmed', 'rejected']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'confirmed_at', 'reason', 'ended_at']);
+      allow list, delete: if false;
+    }
+    match /du_lieu_tram/thong_tin_hien_tai {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+  }
+}

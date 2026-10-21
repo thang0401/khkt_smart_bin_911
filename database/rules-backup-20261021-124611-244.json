@@ -1,0 +1,25 @@
+﻿{
+    "ruleset":  {
+                    "name":  "projects/thung-rac-ch4/rulesets/a8774e02-f9d1-4167-99e8-ded6263bd7d9",
+                    "source":  {
+                                   "files":  [
+                                                 {
+                                                     "content":  "rules_version = \u00272\u0027;\n\nservice cloud.firestore {\n  match /databases/{database}/documents {\n\n    // Tra cứu học sinh, chưa cho web sửa điểm.\n    match /students/{studentCode} {\n      allow get: if true;\n      allow list, create, update, delete: if false;\n\n      // Đọc lịch sử tích điểm.\n      match /point_history/{eventId} {\n        allow read: if true;\n        allow write: if false;\n      }\n    }\n\n    // Đọc cấu hình thưởng.\n    match /reward_settings/{settingId} {\n      allow get: if true;\n      allow list, create, update, delete: if false;\n    }\n\n    // Hỗ trợ luồng thống kê và lấy rác hiện tại.\n    match /du_lieu_tram/thong_tin_hien_tai {\n      allow read: if true;\n      allow create, update: if true;\n      allow delete: if false;\n    }\n  }\n}",
+                                                     "name":  "firestore.rules"
+                                                 }
+                                             ]
+                               },
+                    "createTime":  "2026-10-21T05:17:49.445151Z",
+                    "metadata":  {
+                                     "services":  [
+                                                      "cloud.firestore"
+                                                  ]
+                                 }
+                },
+    "release":  {
+                    "name":  "projects/thung-rac-ch4/releases/cloud.firestore",
+                    "rulesetName":  "projects/thung-rac-ch4/rulesets/a8774e02-f9d1-4167-99e8-ded6263bd7d9",
+                    "createTime":  "2026-06-26T16:24:23.767661Z",
+                    "updateTime":  "2026-10-21T05:17:49.784116Z"
+                }
+}

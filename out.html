@@ -3,258 +3,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bảng Hiển Thị Trạng Thái Thùng Rác AI - NLS_TN01</title>
-    
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-
-    <style>
-        * { box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-            background-color: #0b132b; 
-            color: #ffffff; 
-            margin: 0; 
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-        }
-        .dashboard { 
-            width: 100%; 
-            max-width: 1024px; /* Tối ưu kích thước chiều ngang máy tính bảng */
-            background: #1c2541; 
-            padding: 30px; 
-            border-radius: 24px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 1px solid #3a506b;
-        }
-        h1 { 
-            color: #4cc9f0; 
-            margin: 0 0 5px 0; 
-            font-size: 28px; 
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .sub-title {
-            color: #64dfdf;
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 30px;
-        }
-        
-        /* Bố cục chia lưới 2 cột lớn hiển thị trực quan trên Tablet */
-        .grid-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 25px;
-        }
-        
-        /* Khung hiển thị Kết quả AI khổng lồ */
-        .sl-rac{
-            grid-column: 1 / -1;
-            text-align: center;
-            font-size:25px;
-            font-weight: bold;
-
-        }
-        .card-main {
-            grid-column: 1 / -1;
-            background: linear-gradient(135deg, #3a0ca3, #4361ee);
-            padding: 30px;
-            border-radius: 20px;
-            text-align: center;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-        }
-        .card-main h2 { margin: 0 0 10px 0; font-size: 20px; color: #e0aaff; }
-        #txtKetQuaAI { 
-            font-size: 40px; 
-            font-weight: 900; 
-            margin: 10px 0;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            color: #fff;
-        }
-        #txtTiLe { font-size: 22px; color: #ccff33; font-weight: bold; }
-
-        /* Khung hiển thị các thông số phụ */
-        .card-sub {
-            background: #222e50;
-            padding: 25px;
-            border-radius: 18px;
-            border-left: 6px solid #4cc9f0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        .card-sub h3 { margin: 0 0 8px 0; font-size: 18px; color: #9a8c98; }
-        .value { font-size: 38px; font-weight: bold; color: #5bc0be; }
-        
-        .card-sub.time-card { border-left-color: #f72585; }
-        #txtThoiGian { font-size: 22px; color: #ffb703; }
-
-        .status-footer {
-            margin-top: 30px;
-            font-size: 14px;
-            color: #6c757d;
-            border-top: 1px solid #3a506b;
-            padding-top: 15px;
-        }
-        #txtStatusNet { color: #2a9d8f; font-weight: bold; }
-        .card-sl{
-            text-align: center;
-            background: linear-gradient(to top ,rgb(37, 37, 247),rgb(8, 160, 231));
-            /* background: linear-gradient(135deg, #3a0ca3, #4361ee); */
-            border-radius: 20px;
-        }
-        .rb{
-            grid-column: 1 / -1;
-            text-align: center;
-        }
-        .btn-reset{
-            padding:18px 45px;
-            font-size:24px;
-            font-weight:bold;
-            border:none;
-            border-radius:15px;
-            background:#e63946;
-            color:white;
-            cursor:pointer;
-            transition:0.3s;
-        }
-        .btn-reset:hover{
-            background:#c1121f;
-            transform:scale(1.05);
-        }
-    </style>
+    <title>SmartBin · Phân loại xanh, tích điểm hay</title>
+    <link rel="stylesheet" href="New%20folder/asset/css/out.css">
 </head>
 <body>
+    <div class="dashboard">
+        <!-- Đầu trang -->
+        <header class="page-header">
+            <div class="brand">
+                <img class="brand-icon" src="New%20folder/asset/img/Huy%20hiệu%20Trường%20Nha%20Trang%20Khánh%20Hòa.svg" alt="Huy hiệu Trường Nha Trang Khánh Hòa" width="53" height="53">
+                <div>
+                    <span class="eyebrow">THCS NHA TRANG - PHÂN HIỆU THÁI NGUYÊN</span>
+                    <h1>SmartBin<span> 2.0</span></h1>
+                </div>
+            </div>
+            <div class="header-caption">
+                Một hành động nhỏ.<br>
+                <strong>Một ngôi trường xanh hơn.</strong>
+            </div>
+        </header>
 
-<div class="dashboard">
-    <h1>Thùng rác thông minh ứng dụng trí tuệ nhân tạo 2.0</h1>
+        <main class="dashboard-layout">
+            <!-- Cột 8/12: nhận diện và thống kê thùng rác -->
+            <section class="bin-panel" aria-labelledby="bin-title">
+                <div class="section-heading">
+                    <div>
+                        <span class="eyebrow">TRẠM PHÂN LOẠI THÔNG MINH</span>
+                        <h2 id="bin-title">Cùng rác đi đúng nơi</h2>
+                    </div>
+                    <span id="txtStatusNet" class="connection" role="status">Đang kết nối…</span>
+                </div>
 
-    <div class="grid-container">
-        <div class="card-main">
-            <div id="txtKetQuaAI">Chờ dữ liệu...</div>
-        </div>
-        <div class="sl-rac">SỐ LƯỢNG RÁC</div> 
-        <div class="card-sl">
-            <h3>Rác vô cơ</h3>
-            <div id="slvc" class="value">-0-</div>
-        </div>
-        <div class="card-sl">
-            <h3>Rác hữu cơ</h3>
-            <div id="slhc" class="value">-0-</div>
-        </div>
-        <div class="card-sl">
-            <h3>Rác khác</h3>
-            <div id="slrk" class="value">-0-</div>
-        </div>
+                <div class="recognition-card">
+                    <div class="scan-icon" aria-hidden="true">♻</div>
+                    <span class="eyebrow">KẾT QUẢ NHẬN DIỆN AI</span>
+                    <div id="txtKetQuaAI" aria-live="polite">Chờ dữ liệu…</div>
+                    <div id="txtTiLe">Đặt từng món rác vào vùng nhận diện</div>
+                </div>
 
+                <div class="section-heading count-heading">
+                    <h3>Số lượng rác trong thùng</h3>
+                    <span>Đơn vị: món</span>
+                </div>
+                <div class="waste-grid">
+                    <article class="waste-card inorganic">
+                        <span class="waste-symbol" aria-hidden="true">↻</span>
+                        <h4>Rác vô cơ</h4>
+                        <div id="slvc" class="value">0</div>
+                        <span class="reward-tag">+2 điểm / món</span>
+                    </article>
+                    <article class="waste-card organic">
+                        <span class="waste-symbol" aria-hidden="true">❧</span>
+                        <h4>Rác hữu cơ</h4>
+                        <div id="slhc" class="value">0</div>
+                        <span class="reward-tag">+3 điểm / món</span>
+                    </article>
+                    <article class="waste-card other">
+                        <span class="waste-symbol" aria-hidden="true">◇</span>
+                        <h4>Rác khác</h4>
+                        <div id="slrk" class="value">0</div>
+                        <span class="reward-tag">+1 điểm / món</span>
+                    </article>
+                </div>
 
+                <div class="last-disposal">
+                    <span class="clock-icon" aria-hidden="true">◷</span>
+                    <div>
+                        <span class="eyebrow">LẦN BỎ RÁC GẦN NHẤT</span>
+                        <div id="txtThoiGian">Đang đồng bộ…</div>
+                    </div>
+                </div>
+                <div class="bin-footer">
+                    <p>Phân loại từng món để nhận diện chính xác hơn.</p>
+                    <button id="btnReset" class="button button-reset" type="button">Lấy rác</button>
+                </div>
+                <p id="binMessage" class="message" role="status"></p>
+            </section>
 
+            <!-- Cột 4/12: tra cứu học sinh, tích điểm và lịch sử -->
+            <aside class="student-panel" aria-labelledby="student-title">
+                <div class="student-heading">
+                    <h2 id="student-title">Bỏ rác xanh,<br>nhận điểm lành.</h2>
+                </div>
+                <div class="reward-guide">
+                    <h3>Cách tính điểm</h3>
+                    <div>
+                        <span>Vô cơ <b>+2</b></span>
+                        <span>Hữu cơ <b>+3</b></span>
+                        <span>Rác khác <b>+1</b></span>
+                    </div>
+                </div>
 
+                <form id="studentForm" class="student-form">
+                    <label for="studentCode">Mã số học sinh</label>
+                    <div class="input-row">
+                        <input
+                            id="studentCode"
+                            name="studentCode"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]{1,30}"
+                            placeholder="Ví dụ: 001"
+                            maxlength="30"
+                            autocomplete="off"
+                            spellcheck="false"
+                            required
+                        >
+                        <button id="lookupButton" class="button button-primary" type="submit">Tra cứu →</button>
+                    </div>
+                </form>
+                <p id="studentMessage" class="message" role="status" aria-live="polite">Nhập mã để tìm học sinh.</p>
+                <p id="connectionMessage" class="message" role="status" aria-live="polite"></p>
 
+                <!-- Kết quả tra cứu: danh tính và hai tab nội dung -->
+                <div id="studentDetails" hidden>
+                    <div class="student-identity">
+                        <span id="studentAvatar" class="avatar" aria-hidden="true">HS</span>
+                        <div>
+                            <h3 id="studentName"></h3>
+                            <p id="studentMeta"></p>
+                        </div>
+                        <span class="verified-badge">Đã tìm thấy</span>
+                    </div>
+                    <div class="student-tabs" role="tablist" aria-label="Thông tin tích điểm học sinh">
+                        <button id="pointsTab" class="student-tab" type="button" role="tab"
+                            aria-selected="true" aria-controls="pointsPanel" tabindex="0">Tích điểm</button>
+                        <button id="historyTab" class="student-tab" type="button" role="tab"
+                            aria-selected="false" aria-controls="historyPanel" tabindex="-1">Lịch sử tích điểm</button>
+                    </div>
 
+                    <!-- Tab Tích điểm -->
+                    <div id="pointsPanel" class="student-tab-panel" role="tabpanel" aria-labelledby="pointsTab" tabindex="0">
+                        <div class="points-card">
+                            <span>ĐIỂM HIỆN CÓ</span>
+                            <div><strong id="studentPoints">0</strong><span>điểm</span></div>
+                            <p>Tích lũy từ những hành động xanh</p>
+                        </div>
+                        <div class="session-summary">
+                            <div>
+                                <span>Điểm lượt này</span>
+                                <strong id="sessionPoints">—</strong>
+                            </div>
+                            <div>
+                                <span>Điểm vừa nhận</span>
+                                <strong id="latestPoints">—</strong>
+                            </div>
+                        </div>
+                        <div class="session-actions">
+                            <button id="startSession" class="button button-primary" type="button" disabled>Bắt đầu tích điểm</button>
+                            <button id="finishSession" class="button button-secondary" type="button" disabled>Hoàn tất</button>
+                        </div>
+                        <p id="sessionStatus" class="phase-notice" role="status" aria-live="polite">Bấm Bắt đầu trước khi bỏ rác để nhận điểm.</p>
+                        <button id="continueSession" class="button button-secondary" type="button" hidden>Tiếp tục phiên</button>
+                    </div>
 
+                    <!-- Tab Lịch sử tích điểm -->
+                    <div id="historyPanel" class="student-tab-panel" role="tabpanel" aria-labelledby="historyTab" tabindex="0" hidden>
+                        <div class="history-heading">
+                            <h3>Lịch sử tích điểm</h3>
+                            <span id="historyCount">Gần đây</span>
+                        </div>
+                        <div class="history-scroll" tabindex="0" role="region" aria-label="Danh sách lịch sử tích điểm">
+                            <p id="historyState" class="empty-state" role="status">Chưa có lượt tích điểm nào.</p>
+                            <ol id="historyList" class="history-list"></ol>
+                            <button id="loadMoreHistory" class="button button-history" type="button" hidden>Xem thêm lịch sử ↓</button>
+                        </div>
+                    </div>
+                </div>
 
+                <!-- Bàn phím khi chưa chọn học sinh hoặc nhập lại mã -->
+                <div id="studentEmpty" class="student-keypad" role="group" aria-label="Bàn phím nhập mã học sinh">
+                    <button type="button" class="keypad-key" data-key="1">1</button>
+                    <button type="button" class="keypad-key" data-key="2">2</button>
+                    <button type="button" class="keypad-key" data-key="3">3</button>
+                    <button type="button" class="keypad-key" data-key="4">4</button>
+                    <button type="button" class="keypad-key" data-key="5">5</button>
+                    <button type="button" class="keypad-key" data-key="6">6</button>
+                    <button type="button" class="keypad-key" data-key="7">7</button>
+                    <button type="button" class="keypad-key" data-key="8">8</button>
+                    <button type="button" class="keypad-key" data-key="9">9</button>
+                    <button type="button" class="keypad-key keypad-delete" data-key="delete" aria-label="Xóa ký tự">×</button>
+                    <button type="button" class="keypad-key" data-key="0">0</button>
+                    <button type="button" class="keypad-key keypad-enter" data-key="enter" aria-label="Enter: tra cứu học sinh">↵</button>
+                </div>
+            </aside>
+        </main>
 
-
-
-        
-        <div class="card-sub card-main-sub time-card" style="grid-column: 1 / -1;">
-            <h3>🕒 RÁC ĐƯỢC BỎ LẦN CUỐI</h3>
-            <div id="txtThoiGian">Đang đồng bộ thời gian thực...</div>
-        </div>
-        <div class="rb">
-            <button id="btnReset" class="btn-reset" onclick="lay_rac()">🗑️ Lấy rác</button>
-        </div>
-
+        <footer class="page-footer">
+            <span>THÙNG RÁC THÔNG MINH ỨNG DỤNG TRÍ TUỆ NHÂN TẠO</span>
+            <span>Phân loại hôm nay · Xanh hơn ngày mai</span>
+        </footer>
     </div>
 
-    <!-- <div class="status-footer">
-        Trạng thái kết nối Firebase: <span id="txtStatusNet">🔄 ĐANG KẾT NỐI...</span>
-    </div> -->
-</div>
-
-<script>
-    // 1. CẤU HÌNH FIREBASE (Dữ liệu cấu hình chính xác từ dự án thung-rac-ch4 của bạn)
-    const firebaseConfig = {
-        apiKey: "AIzaSyCL8Rh8rzffeWnvubisPX-OXjpItEN-9WI",
-        authDomain: "thung-rac-ch4.firebaseapp.com",
-        databaseURL: "https://thung-rac-ch4-default-rtdb.firebaseio.com",
-        projectId: "thung-rac-ch4",
-        storageBucket: "thung-rac-ch4.firebasestorage.app",
-        messagingSenderId: "375353797135",
-        appId: "1:375353797135:web:0ec2891d5366b2bf1e517a",
-        measurementId: "G-9WHNCZ0XKD"
-    };
-
-    
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-
-    function lay_rac(){
-        const mk = prompt("Nhập mật khẩu:");
-        if (mk === null) return;
-        if (mk !="12345"){
-            alert("Sai mật khẩu");
-            return;
-        }
-        db.collection("du_lieu_tram").doc("thong_tin_hien_tai").set({
-            ai_result : "",
-            rac_vo_co : 0,
-            rac_huu_co: 0,
-            rac_khac  : 0
-        });
-    }
-
-
-
-
-    
-
-    // 2. LẮNG NGHE DỮ LIỆU REAL-TIME TỪ FIREBASE ĐỔ VỀ
-    function batDauLangNgheFirebase() {
-        db.collection("du_lieu_tram").doc("thong_tin_hien_tai").onSnapshot(function(doc) {
-            if (doc.exists) {
-                const data = doc.data();
-                
-                // Trích xuất dữ liệu dựa theo các trường bạn gửi từ file main3.js lên
-                const sl_hc   = data.rac_huu_co || "0";
-                const sl_vc   = data.rac_vo_co || "0";
-                const sl_rk   = data.rac_khac || "0";
-                
-                let ketQuaAI = data.ai_result || "Không rõ";
-                if (ketQuaAI == "A") ketQuaAI = "Rác Vô Cơ";
-                if (ketQuaAI == "B") ketQuaAI = "Rác Hữu Cơ";
-                if (ketQuaAI == "C") ketQuaAI = "Rác Khác";
-                
-                const tiLe     = data.ti_le ? data.ti_le.toFixed(1) : "0.0";
-                const thoiGian = data.time ? data.time.toDate().toLocaleString('vi-VN') : "Vừa xong";
-                
-                // Lấy thêm thông số môi trường (nếu có gửi kèm)
-
-                // Đẩy dữ liệu ra màn hình hiển thị HTML trực quan
-                document.getElementById("txtKetQuaAI").innerText = ketQuaAI;
-                document.getElementById("slhc")       .innerText = sl_hc;
-                document.getElementById("slvc")       .innerText = sl_vc;
-                document.getElementById("slrk")       .innerText = sl_rk;
-                
-                document.getElementById("txtThoiGian").innerText = thoiGian;
-                
-            } else {
-                document.getElementById("txtKetQuaAI").innerText = "Chưa có rác";
-                document.getElementById("txtThoiGian").innerText = "Đang đợi thùng rác gửi dữ liệu bản ghi đầu tiên...";
-            }
-        }, function(error) {
-            console.error("Lỗi đường truyền Firebase: ", error);
-        });
-    }
-
-    // Tự động chạy hàm lắng nghe ngay khi màn hình tablet load xong ứng dụng web
-    window.onload = batDauLangNgheFirebase;
-</script>
-
+    <!-- Thư viện, cấu hình, dữ liệu mẫu, rồi khởi tạo trang (giữ đúng thứ tự) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="New%20folder/asset/js/config.js"></script>
+    <script src="New%20folder/asset/js/students.demo.js"></script>
+    <script src="New%20folder/asset/js/smartbin-store.js"></script>
+    <script src="New%20folder/asset/js/out.js"></script>
 </body>
 </html>

@@ -1,0 +1,12 @@
+[
+  { "student_code": "001", "full_name": "Nguyễn Minh Anh", "class_name": "10A1", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 },
+  { "student_code": "002", "full_name": "Trần Đức Anh", "class_name": "10A1", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 },
+  { "student_code": "003", "full_name": "Lê Ngọc Hà", "class_name": "10A2", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 },
+  { "student_code": "004", "full_name": "Phạm Gia Huy", "class_name": "10A2", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 },
+  { "student_code": "005", "full_name": "Hoàng Khánh Linh", "class_name": "11A1", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 },
+  { "student_code": "006", "full_name": "Vũ Bảo Nam", "class_name": "11A1", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 },
+  { "student_code": "007", "full_name": "Đặng Phương Thảo", "class_name": "11A2", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 },
+  { "student_code": "008", "full_name": "Bùi Quang Minh", "class_name": "11A2", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 },
+  { "student_code": "009", "full_name": "Đỗ Thu Trang", "class_name": "12A1", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 },
+  { "student_code": "010", "full_name": "Ngô Hải Đăng", "class_name": "12A1", "active": true, "points_balance": 0, "points_earned": 0, "points_spent": 0 }
+]

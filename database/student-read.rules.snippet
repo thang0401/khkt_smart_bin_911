@@ -1,0 +1,16 @@
+// LEGACY: read-only lookup phase. Use firestore.rules for sessions/DONE/point writes.
+// Insert these matches INSIDE the existing match /databases/{database}/documents.
+// DO NOT replace the project's complete rules with this snippet.
+// Prototype only: public reads for fictitious demo students, no client point writes.
+match /students/{studentCode} {
+  allow get: if true;
+  allow list, create, update, delete: if false;
+  match /point_history/{eventId} {
+    allow get, list: if true;
+    allow create, update, delete: if false;
+  }
+}
+match /reward_settings/{settingId} {
+  allow get: if true;
+  allow list, create, update, delete: if false;
+}
