@@ -2,20 +2,20 @@
 
 ## Chạy trên thiết bị
 
-1. Dùng cùng project trong `New folder/asset/js/config.js`, nguồn dữ liệu `firebase`.
+1. Dùng cùng project trong `src/asset/js/config.js`, nguồn dữ liệu `firebase`.
    Cả hai trang dùng cùng `STATION_ID`, mặc định `NLS_TN01`. Hiện thống kê thùng vẫn dùng
    document `du_lieu_tram/thong_tin_hien_tai`, chỉ triển khai một trạm.
 2. Áp dụng `database/firestore.rules` trên project. Đây là rules cho dữ liệu mẫu, chưa có đăng nhập.
    Có thể dùng `powershell -NoProfile -ExecutionPolicy Bypass -File .\database\publish-rules.ps1`.
    Script kiểm tra source với Firebase, sao lưu rules cũ rồi publish và xác minh release.
-3. Mở `out.html` trên màn hình hiển thị; mở `New folder/index.html` trên thiết bị có camera/HM-10.
+3. Mở `out.html` trên màn hình hiển thị; mở `src/index.html` trên thiết bị có camera/HM-10.
    Bluetooth/camera cần trình duyệt hỗ trợ và ngữ cảnh an toàn (HTTPS hoặc localhost).
 4. Tra cứu `001`, bấm **Bắt đầu tích điểm**. Ô nhập mã bị khóa trong suốt phiên.
 5. Kết nối HM-10 trên trang nhận diện. Đặt từng món vào camera.
 6. Khi cùng một loại ổn định 5 lượt, web tạo `disposal_events` và khóa trạm, rồi gửi A/B/C.
 7. Chỉ khi nhận chuỗi `DONE`, web mới cập nhật số dư, tổng điểm kiếm được, điểm phiên,
    lịch sử và số lượng rác trong một transaction. Lặp DONE cho cùng ID không cộng lại.
-8. Lấy vật ra khỏi camera. Cần 3 lượt nhận diện liên tiếp không thấy vật trước lượt kế tiếp.
+8. Lấy vật ra khỏi camera. Sau DONE, đồng bộ và thời gian nghỉ, trạm nhận lượt kế tiếp; không bắt buộc 3 khung hình trống.
 9. Bấm **Hoàn tất** để kết thúc phiên và xóa học sinh khỏi màn hình.
 
 ## Thời gian và trạng thái
@@ -23,7 +23,7 @@
 - Thời gian không hoạt động đọc từ `reward_settings/default.session_idle_seconds`, mặc định 120 giây.
 - Cảnh báo đọc từ `session_warning_seconds`, mặc định 15 giây. Nút **Tiếp tục phiên** gia hạn phiên.
 - Bắt đầu xử lý rác hoặc xác nhận DONE đều cập nhật hoạt động của phiên.
-- Khi có lượt rác đang xử lý, không cho kết thúc/đổi học sinh. Sau DONE, phiên được gia hạn.
+- Có thể bấm Hoàn tất khi rác đang xử lý rồi bắt đầu phiên tiếp theo. DONE đến sau ghi điểm đúng phiên/học sinh đã gắn với lượt rác; chỉ phiên còn active mới được gia hạn.
 - Hết hạn khi không có lượt chờ: chuyển `expired`, bỏ khóa phiên. Nếu màn hình đóng,
    lần bắt đầu/chuẩn bị rác tiếp theo kiểm tra hạn và loại bỏ phiên cũ trước khi gắn học sinh.
 - Không có phiên hoặc phiên đã hết hạn: vẫn phân loại và thống kê rác, không cộng cho ai.
@@ -31,7 +31,7 @@
 
 ## Khi có lỗi
 
-- Không có mạng hoặc khóa trạm chỉ có cache: khóa thao tác phiên và không gửi lệnh mới ra máy.
+- Không có mạng hoặc khóa trạm chỉ có cache: không gửi lệnh mới ra máy. Camera vẫn nhận diện; nút Bắt đầu/Hoàn tất vẫn bấm được nhưng ghi dữ liệu cần kết nối Firestore.
   Khi kết nối Firebase trở lại, tự đọc lại khóa/phiên từ server, không cần đổi học sinh hoặc tải lại trang.
 - Quá 7 giây chưa DONE: chưa cộng điểm, giữ nguyên khóa, không tự coi là thành công.
 - Ghi Bluetooth lỗi: kết quả vật lý có thể chưa rõ; giữ lượt chờ, không tự gửi lại lệnh.
@@ -71,7 +71,7 @@ Rules hiện cho web không đăng nhập ghi vào các collection tính năng. 
 transaction bảo vệ lỗi vận hành thông thường, chưa ngăn người cố ý giả mạo điểm hoặc DONE.
 Trước khi dùng điểm thật cần xác thực thiết bị và xác nhận giao dịch qua backend đáng tin cậy.
 
-Firmware hiện chỉ trả `DONE` không kèm ID. Code chống xử lý lại cùng event và chờ camera trống,
+Firmware hiện chỉ trả `DONE` không kèm ID. Code chống xử lý lại cùng event và có thời gian nghỉ sau khi đồng bộ,
 nhưng không thể phân biệt một DONE rất trễ của chu kỳ trước với chu kỳ mới nếu firmware gửi
 sai thứ tự. Nên nâng firmware lên giao thức `command/eventId → DONE/eventId` trước vận hành thật.
 Đồng hồ các thiết bị cần chính xác; thời hạn được tạo từ đồng hồ client, thời gian audit dùng serverTimestamp.
@@ -84,12 +84,13 @@ Nếu có Node.js:
 node .\tests\smartbin-flow.test.cjs
 node .\tests\dashboard-lock.test.cjs
 node .\tests\bluetooth-connect.test.cjs
+node .\tests\recognition.test.cjs
 ```
 
 Bộ test dùng Firestore giả lập trong bộ nhớ, thực thi transaction nguyên tử/tuần tự và chặn
 đọc sau ghi. Bao phủ phiên đồng thời, hết hạn/gia hạn, khóa lúc pending, chốt mức thưởng,
 DONE lặp/chia gói/đến trong writeValue, lỗi mạng, reload và timeout. Không thay thế kiểm thử
-Firestore SDK, quyền thực tế, camera và HM-10 trên thiết bị. Bộ hồi quy hiện có 36 trường hợp,
+Firestore SDK, quyền thực tế, camera và HM-10 trên thiết bị. Bộ hồi quy hiện có 50 trường hợp,
 gồm snapshot/tra cứu đến trễ, cache cũ, mất phản hồi sau commit, callback lỗi và kết nối Bluetooth bị treo.
 
 Kiểm tra thật sau khi publish:
@@ -101,7 +102,7 @@ Kiểm tra thật sau khi publish:
 5. Bấm Hoàn tất; bắt đầu `002`: rác mới chỉ tăng cho `002`.
 6. Không thao tác 120 giây: có cảnh báo, hết hạn và quay lại bàn phím; Tiếp tục phiên gia hạn.
 7. Ngắt mạng sau khi đã gửi, nhận DONE, kết nối lại: cộng một lần khi đồng bộ được.
-8. Không gửi DONE quá 7 giây: không có điểm; không thể đổi học sinh/kết thúc trong lúc chờ.
+8. Không gửi DONE quá 7 giây: không có điểm; có thể Hoàn tất phiên; lượt đang chờ giữ nguyên học sinh đã gắn.
 9. Mất mạng lúc có lượt chờ: ô mã vẫn khóa; nhận DONE rồi bật mạng lại, điểm chỉ cộng một lần.
 10. Tải lại trang nhận diện khi mất mạng (SDK/model đã sẵn có): kết nối đúng HM-10, nhận DONE,
     bật mạng lại và kiểm tra một giao dịch confirmed. Nếu CDN SDK/model chưa tải được cần tải lại trang khi có mạng.
