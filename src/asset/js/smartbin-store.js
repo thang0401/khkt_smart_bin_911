@@ -48,8 +48,8 @@ globalThis.SmartBinStore = class SmartBinStore {
             if (student.active !== true) this.fail("Học sinh không còn hoạt động.");
             // Bấm Bắt đầu lần nữa giữ nguyên phiên đang dùng của học sinh.
             if (previous?.status === "active" && previous.student_code === code &&
-                (station.pending_event_id || this.millis(previous.expires_at) > this.now())) return station.active_session_id;
-            if (previous?.status === "active" && (station.pending_event_id || this.millis(previous.expires_at) > this.now())) {
+                (this.millis(previous.expires_at) > this.now())) return station.active_session_id;
+            if (previous?.status === "active" && (this.millis(previous.expires_at) > this.now())) {
                 this.fail("Trạm đang có phiên sử dụng. Hãy hoàn tất phiên hiện tại.");
             }
             const idle = this.idle(settings);
@@ -72,7 +72,6 @@ globalThis.SmartBinStore = class SmartBinStore {
             const station = this.data(await tx.get(this.station));
             const session = this.data(await tx.get(this.session(id)));
             if (station.active_session_id !== id || session.status !== "active") return false;
-            if (reason === "idle" && station.pending_event_id) return false;
             if (reason === "idle" && this.millis(session.expires_at) > this.now()) return false;
             tx.update(this.session(id), {
                 status: reason === "idle" ? "expired" : "completed",
@@ -89,7 +88,6 @@ globalThis.SmartBinStore = class SmartBinStore {
             const session = this.data(await tx.get(this.session(id)));
             if (station.active_session_id !== id || session.status !== "active" ||
                 this.millis(session.expires_at) <= this.now()) this.fail("Phiên đã hết hạn.");
-            if (station.pending_event_id) this.fail("Máy đang xử lý; phiên sẽ được gia hạn khi nhận DONE.");
             tx.update(this.session(id), {
                 last_activity_at: this.stamp(), expires_at: this.timestamp(this.now() + session.idle_seconds * 1000)
             });
@@ -138,7 +136,36 @@ globalThis.SmartBinStore = class SmartBinStore {
         });
     }
 
-    async confirmDisposal(id, controllerId) {
+    // Gọi sau DONE. Tạo event để giữ mức thưởng và chống cộng lại; không lấy khóa trạm.
+    async recordCompletedDisposal(item) {
+        if (!["A", "B", "C"].includes(item.wasteCode)) this.fail("Loại rác không hợp lệ.");
+        if (!Number.isFinite(item.confidence) || item.confidence < 0 || item.confidence > 100) this.fail("Độ tin cậy không hợp lệ.");
+        const ref = this.event(item.eventId);
+        await this.db.runTransaction(async tx => {
+            const existing = await tx.get(ref);
+            if (existing.exists) return;
+            const settings = this.data(await tx.get(this.settings));
+            const session = item.sessionId ? this.data(await tx.get(this.session(item.sessionId))) : null;
+            const student = session?.student_code ? this.data(await tx.get(this.student(session.student_code))) : null;
+            const eligible = session?.station_id === this.stationId && student?.active === true &&
+                this.millis(session.started_at) <= item.sentAt && this.millis(session.expires_at) > item.sentAt &&
+                (!session.ended_at || this.millis(session.ended_at) >= item.sentAt);
+            const rate = settings.points_by_waste_code?.[item.wasteCode];
+            if (!Number.isInteger(rate) || rate < 0) this.fail("Chưa có cấu hình thưởng hợp lệ.");
+            tx.set(ref, {
+                event_id: item.eventId, station_id: this.stationId, controller_id: item.controllerId,
+                bluetooth_device_id: item.bluetoothDeviceId || null,
+                session_id: eligible ? item.sessionId : null,
+                student_code: eligible ? session.student_code : null,
+                waste_code: item.wasteCode, confidence: Number(item.confidence.toFixed(1)),
+                unit_points: eligible ? rate : 0, quantity: 1, reward_version: settings.version,
+                status: "pending", created_at: this.timestamp(item.sentAt)
+            });
+        });
+        return this.confirmDisposal(item.eventId, item.controllerId, false);
+    }
+
+    async confirmDisposal(id, controllerId, trackStationPending = true) {
         return this.db.runTransaction(async tx => {
             const event = this.data(await tx.get(this.event(id)));
             if (event.station_id !== this.stationId || event.controller_id !== controllerId) this.fail("Lượt rác không thuộc thiết bị này.");
@@ -153,9 +180,9 @@ globalThis.SmartBinStore = class SmartBinStore {
             const student = event.student_code ? this.data(await tx.get(this.student(event.student_code))) : null;
             const historyRef = event.student_code ? this.student(event.student_code).collection("point_history").doc(id) : null;
             const history = historyRef ? await tx.get(historyRef) : null;
-            if (station.pending_event_id !== id) this.fail("Khóa lượt rác đã thay đổi; cần kiểm tra trạm.");
+            if (trackStationPending && station.pending_event_id !== id) this.fail("Khóa lượt rác đã thay đổi; cần kiểm tra trạm.");
             if (event.student_code && (!student?.active || session?.student_code !== event.student_code ||
-                !["active", "completed"].includes(session.status) || session.station_id !== this.stationId)) {
+                !(trackStationPending ? ["active", "completed"] : ["active", "completed", "expired"]).includes(session.status) || session.station_id !== this.stationId)) {
                 this.fail("Học sinh hoặc phiên không còn hợp lệ; cần người quản lý kiểm tra lượt rác.");
             }
             if (history?.exists) this.fail("Lịch sử đã tồn tại nhưng lượt rác chưa xác nhận; cần kiểm tra dữ liệu.");
@@ -185,7 +212,7 @@ globalThis.SmartBinStore = class SmartBinStore {
                 });
             }
             tx.update(this.event(id), { status: "confirmed", confirmed_at: this.stamp() });
-            tx.update(this.station, { pending_event_id: null, last_event_id: id, updated_at: this.stamp() });
+            tx.set(this.station, { ...(trackStationPending ? { pending_event_id: null } : {}), last_event_id: id, updated_at: this.stamp() }, { merge: true });
             return event;
         });
     }
@@ -204,7 +231,6 @@ globalThis.SmartBinStore = class SmartBinStore {
     async resetBin() {
         return this.db.runTransaction(async tx => {
             const station = this.data(await tx.get(this.station));
-            if (station.pending_event_id) this.fail("Máy đang xử lý rác; chưa thể lấy rác.");
             tx.set(this.bin, {
                 ai_result: "", rac_vo_co: 0, rac_huu_co: 0, rac_khac: 0,
                 ti_le: this.fs.FieldValue.delete(), time: this.fs.FieldValue.delete()

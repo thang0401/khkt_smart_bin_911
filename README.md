@@ -14,7 +14,7 @@ src/
       config.js                  Cấu hình Firebase, nguồn dữ liệu, hằng số
       students.demo.js           10 học sinh và lịch sử mẫu
       smartbin-store.js          Transaction phiên, khóa trạm và giao dịch điểm
-      device-controller.js       Phục hồi lượt BLE đang chờ và xác nhận DONE
+      device-controller.js       Luồng khóa cũ, không nạp trên trang camera hiện tại
       out.js                     Xử lý giao diện trang out.html
     img/                         Hình ảnh
 database/                        Seed Firestore và hướng dẫn database
@@ -44,10 +44,20 @@ Xem `database/README.md` để tạo dữ liệu Firestore.
 
 ## Nhận diện và phần cứng
 
-- Mở `src/index.html` trên thiết bị có camera. Kết quả AI vẫn thay đổi khi chưa kết nối Bluetooth hoặc Firestore đang chờ đồng bộ.
-- Dòng trạng thái dưới kết quả AI cho biết vì sao chưa gửi được lệnh. Chỉ gửi sau 5 lượt nhận diện cùng loại khi trạm và HM-10 sẵn sàng.
-- Ánh xạ theo model và firmware: `A = VO_CO`, `B = HUU_CO`, `C = RAC_KHAC`. Model dùng ảnh RGB 320 × 320, zoom mặc định 1.6 và ngưỡng 0.4 như bản gốc.
-- Firmware thực hiện 4 lần chờ 1500 ms rồi trả `DONE\r\n`. Chỉ sau DONE mới xác nhận lượt rác và điểm; không gửi lại lệnh vật lý chỉ vì quá thời gian chờ.
-- Sau DONE, đồng bộ và thời gian nghỉ, có thể nhận món tiếp theo mà không cần 3 khung hình camera trống. Đưa vật đã phân loại ra khỏi camera để tránh phân loại lại cùng vật.
-- Console ghi `[SORT]` với loại rác, độ tin cậy và lệnh đã gửi.
-- Kiểm thử luồng camera và ánh xạ: `node tests/recognition.test.cjs`. Bộ này dùng đầu ra model giả lập, không thay thế kiểm tra ảnh thật và servo/HM-10.
+Mở `src/index.html`, kết nối HM-10. Tra cứu và Bắt đầu tích điểm trên `out.html`.
+AI cùng một loại ổn định 5 lượt sẽ gửi trực tiếp một byte `A` (vô cơ), `B` (hữu cơ) hoặc `C` (khác).
+Lệnh Bluetooth không chờ Firestore, controller ID, Web Locks, localStorage hay `pending_event_id` cũ.
+Ảnh đầu vào RGB 320 × 320, zoom 1.6 và ngưỡng 0.4 giữ nguyên source hoạt động trước đây.
+
+Firmware chạy servo khoảng 6 giây rồi trả `DONE\r\n`. Trang chờ DONE hoặc tối đa 7 giây như source cũ;
+không cần 3 khung hình camera trống. Lấy món đã phân loại ra khỏi camera trước món tiếp theo.
+Chỉ khi nhận DONE mới lưu thống kê và điểm. Không có DONE thì không cộng điểm.
+Phiên học sinh được chụp lúc gửi lệnh để DONE đến sau Hoàn tất vẫn cộng cho đúng học sinh.
+
+Lượt đã DONE được xếp vào hàng đợi đồng bộ riêng; lỗi mạng không chặn servo của lượt tiếp theo.
+Hàng đợi được lưu cục bộ nếu trình duyệt cho phép và tự thử lại mỗi 5 giây hoặc khi bấm Thử đồng bộ lại.
+Reload chỉ đồng bộ các lượt đã DONE, không phát lại lệnh vật lý. Nếu reload giữa chu kỳ trước DONE thì lượt đó không được phục hồi.
+Không mở đồng thời nhiều trang camera điều khiển cùng một HM-10 trong luồng đơn giản này.
+
+Console ghi `[BLE] sending`, `[BLE] write accepted` và `[BLE] received`.
+Kiểm thử trực tiếp đường ghi Bluetooth và ghi điểm: `node tests/recognition.test.cjs`.

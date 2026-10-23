@@ -112,7 +112,6 @@ async function runTests() {
         assert.equal(await f.store.finishSession(id, 'idle'), false);
         await assert.rejects(f.store.startSession('002'), /đang có phiên/);
         await assert.rejects(f.store.prepareDisposal('A', 80, 'device'), /lượt rác khác/);
-        await assert.rejects(f.store.resetBin(), /đang xử lý/);
         f.advance(150000);
         await Promise.all([f.store.confirmDisposal(e.event_id, 'device'), f.store.confirmDisposal(e.event_id, 'device')]);
         assert.equal(f.data.get('students/001').points_balance, 3);
@@ -136,14 +135,19 @@ async function runTests() {
         await f.store.confirmDisposal(next.event_id, 'device');
         assert.equal(f.data.get('students/001').points_balance, 2);
     });
-    await test('pending disposal keeps its original session even after the idle deadline', async () => {
+    await test('stale station pending does not prevent expired session replacement or completed-cycle credit', async () => {
         const f = fixture();
         const id = await f.store.startSession('001');
-        const event = await f.store.prepareDisposal('B', 92, 'device');
+        const sentAt = f.store.now();
+        f.data.get('bin_stations/NLS_TN01').pending_event_id = 'old-event';
         f.advance(150000);
-        await assert.rejects(f.store.startSession('002'), /đang có phiên/);
-        assert.equal(f.data.get('bin_stations/NLS_TN01').active_session_id, id);
-        await f.store.confirmDisposal(event.event_id, 'device');
+        const next = await f.store.startSession('002');
+        await f.store.recordCompletedDisposal({
+            eventId: 'completed-1', controllerId: 'direct', sessionId: id,
+            wasteCode: 'B', confidence: 90.5, sentAt
+        });
+        assert.equal(f.data.get('bin_stations/NLS_TN01').active_session_id, next);
+        assert.equal(f.data.get('bin_stations/NLS_TN01').pending_event_id, 'old-event');
         assert.equal(f.data.get('students/001').points_balance, 3);
         assert.equal(f.data.get('students/002').points_balance, 0);
     });

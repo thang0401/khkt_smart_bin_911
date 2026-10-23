@@ -61,6 +61,11 @@ function fixture() {
         fs.readFileSync(path.join(root, filename), 'utf8'), context
     );
     vm.runInContext('pointsDevice = __device; statusDiv = document.getElementById("status"); statusHMDiv = document.getElementById("statusHM");', context);
+    const originalReceive = context.handleHM10Data;
+    context.handleHM10Data = event => {
+        received.push(new TextDecoder().decode(event.target.value));
+        originalReceive(event);
+    };
     return { state, context, candidate, characteristic, device, navigator, received, element };
 }
 
@@ -76,11 +81,10 @@ async function runTests() {
         assert.equal(f.received.length, 2);
         assert.equal(f.characteristic.listeners.get('characteristicvaluechanged').size, 1);
     });
-    await test('pending event prevents connecting a different HM-10', async () => {
+    await test('old pending controller does not block connecting HM-10', async () => {
         const f = fixture(); f.state.expected = 'hm-other'; f.device.pending = { bluetoothDeviceId: 'hm-other' };
         await f.context.connect();
-        assert.equal(f.state.connects, 0); assert.equal(f.received.length, 0);
-        assert.match(f.element('status').textContent, /đúng thiết bị/);
+        assert.equal(f.state.connects, 1); assert.equal(f.received.length, 1);
     });
     await test('picker cancellation clears connection guard so the next click can retry', async () => {
         const f = fixture(); const request = f.navigator.bluetooth.requestDevice;

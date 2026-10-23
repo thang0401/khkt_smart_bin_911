@@ -13,6 +13,7 @@ let ZOOM_FACTOR = 1.6;
 // =====================================================================
 
 const MODEL_PATH = "best.onnx";
+const TIME_WAIT = 7000; // Như source cũ: chờ DONE hoặc tối đa 7 giây.
 
 
 const CLASS_NAMES = [ "Vô cơ", "Hữu cơ", "Rác khác"];
@@ -34,12 +35,15 @@ const SCALE_RATIO = DISPLAY_SIZE / AI_SIZE;
 // BIẾN TOÀN CỤC
 // =====================================================================
 
-let pointsDevice;
-let stationHasPending = true;
-let stationSynced = false;
-let stationListenerFailed = false;
+let pointsStore;
+let stationSessionId = null;
 let stationUnsubscribe;
-let stationWatchVersion = 0;
+let pointsInitialized = false;
+let pointsSyncing = false;
+let completedQueue = [];
+let hardwareCycle = null;
+let bluetoothWriting = false;
+let doneBuffer = "";
 let connectingBluetooth = false;
 let bluetoothRetryAt = 0;
 let bluetoothRetryDelay = 2000;
@@ -212,11 +216,7 @@ async function connect(automatic = false) {
     let cancelled = false;
     try {
         statusDiv.textContent = "Đang kết nối HM-10…";
-        const expected = pointsDevice?.pending?.bluetoothDeviceId;
         candidate = bluetoothDevice;
-        if (!candidate && expected && navigator.bluetooth.getDevices) {
-            candidate = (await navigator.bluetooth.getDevices()).find(device => device.id === expected);
-        }
         // Tự nối lại chỉ dùng thiết bị đã được cấp quyền; không tự mở hộp chọn.
         if (!candidate && automatic) {
             bluetoothRetryAt = Date.now() + 30000;
@@ -227,7 +227,6 @@ async function connect(automatic = false) {
             filters: [{ namePrefix: "HM" }],
             optionalServices: ["0000ffe0-0000-1000-8000-00805f9b34fb"]
         });
-        if (pointsDevice && !pointsDevice.acceptsBluetoothDevice(candidate.id)) throw new Error("Còn lượt chờ của HM-10 khác. Chọn lại đúng thiết bị đã gửi lệnh.");
         if (txCharacteristic) txCharacteristic.removeEventListener("characteristicvaluechanged", handleHM10Data);
         txCharacteristic = null;
         if (bluetoothDevice) bluetoothDevice.removeEventListener("gattserverdisconnected", handleGattDisconnect);
@@ -265,35 +264,72 @@ function handleHM10Data(event) {
     if (event.target !== txCharacteristic) return;
     const value = new TextDecoder().decode(event.target.value);
     statusHMDiv.textContent = "📥 " + value;
-    void pointsDevice?.receive(value);
+    console.info?.("[BLE] received", { value });
+    if (!hardwareCycle) return;
+    doneBuffer = (doneBuffer + value.toUpperCase()).slice(-128);
+    if (!/(?:^|\s)DONE(?=\s|$)/.test(doneBuffer)) return;
+    // DONE giải phóng servo ngay; đồng bộ điểm chạy riêng và không chặn lượt mới.
+    completedQueue.push(hardwareCycle);
+    hardwareCycle = null;
+    doneBuffer = "";
+    stableCount = 0;
+    lastClass = -1;
+    persistCompletedQueue();
+    void retryPointsSync();
+    updateSortingStatus();
 }
 
 function getSendBlockReason() {
-    if (!txCharacteristic || !bluetoothDevice?.gatt.connected) return "Kết nối HM-10 để điều khiển thùng rác. AI vẫn đang nhận diện.";
-    if (!pointsDevice) return "AI đang nhận diện; phần đồng bộ điểm chưa sẵn sàng.";
-    if (pointsDevice.pending) return pointsDevice.pending.ack
-        ? "Đã nhận DONE, đang đồng bộ lượt rác trước. AI vẫn đang nhận diện."
-        : "Đang chờ DONE từ servo (chu kỳ phần cứng khoảng 6 giây). AI vẫn đang nhận diện.";
-    if (pointsDevice.sending || pointsDevice.recovering) return "Đang chuẩn bị hoặc khôi phục lượt rác. AI vẫn đang nhận diện.";
-    if (!pointsDevice.ready || !stationSynced || navigator.onLine === false) return "Đang chờ đồng bộ trạm. AI vẫn đang nhận diện.";
-    if (stationHasPending) return "Trạm còn lượt rác chờ. Kết nối đúng thiết bị đã gửi lệnh và bấm Thử đồng bộ lại.";
-    if (Date.now() < pointsDevice.cooldownUntil) return "Servo vừa hoàn tất; đang chuẩn bị lượt tiếp theo.";
+    if (hardwareCycle && Date.now() - hardwareCycle.sentAt >= TIME_WAIT) {
+        hardwareCycle = null;
+        doneBuffer = "";
+        stableCount = 0;
+        lastClass = -1;
+        document.getElementById("pointsStatus").textContent = "Quá 7 giây chưa có DONE. Chưa cộng điểm lượt này; tiếp tục nhận diện như source cũ.";
+    }
+    if (!txCharacteristic || !bluetoothDevice?.gatt.connected) return "Kết nối HM-10 để điều khiển thùng rác.";
+    if (bluetoothWriting) return "Đang gửi lệnh Bluetooth.";
+    if (hardwareCycle) return "Servo đang xử lý, chờ DONE (tối đa 7 giây).";
     return "";
 }
 
 function updateSortingStatus(reason = getSendBlockReason()) {
     const element = document.getElementById("sortStatus");
-    const message = reason || "Sẵn sàng: nhận diện ổn định 5 lượt sẽ gửi lệnh phân loại.";
+    const message = reason || "Sẵn sàng: AI ổn định 5 lượt → gửi A/B/C trực tiếp xuống HM-10.";
     if (element && element.textContent !== message) element.textContent = message;
 }
 
 async function sendBluetooth(classId, score) {
     const command = CLASS_COMMANDS[classId];
     if (!command || getSendBlockReason()) return false;
-    const sent = await pointsDevice.send(command, score, txCharacteristic, bluetoothDevice.id);
-    if (sent) console.info("[SORT]", { command, waste: CLASS_NAMES[classId], confidence: Number(score.toFixed(1)) });
-    updateSortingStatus();
-    return sent;
+    const eventId = globalThis.crypto?.randomUUID?.() || "cycle-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+    // Chụp phiên ngay lúc gửi, tránh cộng cho học sinh khác nếu đổi phiên trước DONE.
+    hardwareCycle = {
+        eventId, controllerId: "browser-" + eventId,
+        sessionId: stationSessionId, wasteCode: command, confidence: score,
+        sentAt: Date.now(), bluetoothDeviceId: bluetoothDevice.id
+    };
+    doneBuffer = "";
+    bluetoothWriting = true;
+    try {
+        console.info?.("[BLE] sending", { command, eventId, sessionId: stationSessionId });
+        // Không await Firebase, không kiểm tra pendingEventId/controller/localStorage trước lệnh vật lý.
+        await bleTimeout(txCharacteristic.writeValue(new TextEncoder().encode(command)), TIME_WAIT);
+        statusDiv.textContent = "Đã gửi lệnh " + command + " (" + CLASS_NAMES[classId] + ")";
+        statusDiv.style.color = "blue";
+        console.info?.("[BLE] write accepted", { command, eventId });
+        audio[classId].currentTime = 0;
+        void audio[classId].play().catch(error => console.warn?.("Audio:", error));
+        return true;
+    } catch (error) {
+        console.error("Bluetooth Error:", error);
+        statusDiv.textContent = "Lỗi gửi Bluetooth: " + error.message;
+        statusDiv.style.color = "red";
+        return false;
+    } finally {
+        bluetoothWriting = false;
+        updateSortingStatus();
+    }
 }
 
 // =====================================================================
@@ -433,66 +469,63 @@ async function predictYOLO() {
         console.error("YOLO Error:", err);
     }
 }
+// Trạm chỉ cung cấp phiên học sinh để ghi điểm; không khóa đường gửi Bluetooth.
 function watchDeviceStation() {
     if (stationUnsubscribe) stationUnsubscribe();
-    const version = ++stationWatchVersion;
-    stationSynced = false;
-    stationListenerFailed = false;
-    stationUnsubscribe = db.collection("bin_stations").doc(STATION_ID).onSnapshot({ includeMetadataChanges: true }, snapshot => {
-        if (version !== stationWatchVersion) return;
-        stationSynced = !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites && navigator.onLine !== false;
-        if (stationSynced) stationHasPending = !!snapshot.data()?.pending_event_id;
+    stationUnsubscribe = db.collection("bin_stations").doc(STATION_ID).onSnapshot(snapshot => {
+        stationSessionId = snapshot.data()?.active_session_id || null;
     }, error => {
-        if (version !== stationWatchVersion) return;
-        stationSynced = false;
-        stationListenerFailed = true;
-        document.getElementById("pointsStatus").textContent = "Chưa đọc được khóa trạm. " + error.message;
+        console.error("Session sync:", error);
+        document.getElementById("pointsStatus").textContent = "Chưa đọc được phiên học sinh. Bluetooth vẫn phân loại; kiểm tra mạng để đồng bộ điểm.";
     });
 }
 
+function persistCompletedQueue() {
+    try { window.localStorage.setItem("smartbin.completed." + STATION_ID, JSON.stringify(completedQueue)); }
+    catch (error) {
+        console.warn?.("Completed queue:", error);
+        document.getElementById("pointsStatus").textContent = "Chưa lưu được lượt đã DONE. Giữ trang mở để đồng bộ điểm.";
+    }
+}
+
 async function retryPointsSync() {
-    if (!pointsDevice) {
+    if (!pointsStore) {
         try { await initializePointsController(); }
         catch (error) { document.getElementById("pointsStatus").textContent = error.message; }
         return;
     }
-    if (stationListenerFailed || !stationSynced) watchDeviceStation();
-    await pointsDevice.tick(true);
+    if (pointsSyncing || navigator.onLine === false || !completedQueue.length) return;
+    pointsSyncing = true;
+    try {
+        while (completedQueue.length) {
+            const result = await pointsStore.recordCompletedDisposal(completedQueue[0]);
+            completedQueue.shift();
+            persistCompletedQueue();
+            document.getElementById("pointsStatus").textContent = result.student_code
+                ? "Đã ghi nhận +" + result.unit_points + " điểm cho học sinh " + result.student_code + "."
+                : "Đã ghi nhận lượt phân loại; không có phiên học sinh tại lúc gửi lệnh.";
+        }
+    } catch (error) {
+        console.error("Points sync:", error);
+        document.getElementById("pointsStatus").textContent = "Đã nhận DONE; đang chờ đồng bộ điểm. Bluetooth vẫn hoạt động. " + error.message;
+    } finally { pointsSyncing = false; }
 }
 
 async function initializePointsController() {
-    const pointsStatus = document.getElementById("pointsStatus");
-    if (!db) throw new Error("Chưa kết nối Firebase. Camera vẫn nhận diện; tải lại trang để thử đồng bộ.");
-    const release = await SmartBinDevice.acquireBrowserLock(navigator.locks, "smartbin-controller-" + firebaseConfig.projectId + "-" + STATION_ID);
-    if (!release) throw new Error("Một tab khác đang điều khiển trạm. Đóng tab đó rồi tải lại trang này.");
-    window.addEventListener("pagehide", () => { if (pointsDevice) pointsDevice.ready = false; release(); }, { once: true });
-    window.addEventListener("pageshow", event => { if (event.persisted) window.location.reload(); });
-    const store = new SmartBinStore(db, STATION_ID, firebase.firestore);
-    pointsDevice = new SmartBinDevice(store, window.localStorage,
-        message => { pointsStatus.textContent = message; },
-        result => {
-            const index = ["A", "B", "C"].indexOf(result.waste_code);
-            if (audio[index]) {
-                audio[index].currentTime = 0;
-                void audio[index].play().catch(error => console.warn("Không phát được âm thanh:", error));
-            }
-        });
+    if (pointsInitialized) return;
+    if (!db) throw new Error("Chưa kết nối Firebase. Bluetooth vẫn phân loại; tải lại trang để thử đồng bộ điểm.");
+    pointsStore = new SmartBinStore(db, STATION_ID, firebase.firestore);
+    try {
+        const saved = JSON.parse(window.localStorage.getItem("smartbin.completed." + STATION_ID) || "[]");
+        if (Array.isArray(saved)) completedQueue = saved.filter(item => item && typeof item.eventId === "string");
+    } catch (error) { console.warn?.("Completed queue:", error); }
     watchDeviceStation();
+    pointsInitialized = true;
     document.getElementById("retryPointsSync").disabled = false;
-    // Đăng ký retry trước lần recover đầu: khởi động offline không cần tải lại trang.
-    setInterval(() => {
-        if (stationListenerFailed && navigator.onLine !== false) watchDeviceStation();
-        void pointsDevice.tick();
-        if (pointsDevice.pending && !txCharacteristic && (bluetoothDevice || pointsDevice.pending.bluetoothDeviceId)) void connect(true);
-    }, 5000);
+    document.getElementById("pointsStatus").textContent = "Bluetooth gửi trực tiếp. Điểm được ghi nhận sau DONE cho phiên đã bắt đầu.";
+    setInterval(() => { void retryPointsSync(); }, 5000);
     window.addEventListener("online", () => { void retryPointsSync(); });
-    window.addEventListener("offline", () => {
-        stationSynced = false;
-        pointsDevice.ready = false;
-        pointsStatus.textContent = "Mất mạng. Không gửi lệnh mới; DONE đang chờ sẽ được giữ để đồng bộ lại.";
-    });
-    await pointsDevice.recover();
-    if (pointsDevice.ready && !pointsDevice.pending) pointsStatus.textContent = "Sẵn sàng. Điểm được ghi nhận sau DONE; học sinh cần Bắt đầu phiên ở trang hiển thị.";
+    void retryPointsSync();
 }
 
 window.onload = init;

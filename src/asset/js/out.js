@@ -336,10 +336,9 @@ function syncSessionControls() {
     const locked = studentChangeLocked() || lookupBusy;
     ui("studentCode").disabled = locked;
     ui("lookupButton").disabled = locked;
-    ui("btnReset").disabled = !usable || !!stationState.pending_event_id;
+    ui("btnReset").disabled = !usable;
     if (ui("connectionMessage")) setMessage("connectionMessage", STUDENT_DATA_SOURCE !== "firebase" ? "" :
-        !usable ? "Đang chờ xác minh dữ liệu từ máy chủ. Tạm khóa đổi học sinh." :
-        stationState.pending_event_id ? "Máy đang xử lý lượt rác trước. Bạn có thể bắt đầu phiên; điểm chỉ tính cho các lượt rác gắn với phiên của bạn." : "", !usable);
+        !usable ? "Đang chờ xác minh dữ liệu từ máy chủ. Tạm khóa đổi học sinh." : "", !usable);
     ui("sessionPoints").textContent = activeSession ? formatNumber(activeSession.points_earned) : "—";
     ui("latestPoints").textContent = activeSession?.items_count ? `+${formatNumber(activeSession.latest_points)}` : "—";
     if (STUDENT_DATA_SOURCE === "demo") ui("sessionStatus").textContent = "Chế độ demo chỉ để xem giao diện. Chọn firebase trong config.js để bắt đầu phiên thật.";
@@ -382,11 +381,9 @@ function refreshSessionTimer() {
         return;
     }
     const seconds = Math.max(0, Math.ceil((sessionStore.millis(activeSession.expires_at) - Date.now()) / 1000));
-    ui("continueSession").hidden = !!stationState.pending_event_id || seconds > warningSeconds || seconds === 0;
+    ui("continueSession").hidden = seconds > warningSeconds || seconds === 0;
     ui("continueSession").disabled = !stationUsable() || sessionActionBusy;
-    if (stationState.pending_event_id) {
-        ui("sessionStatus").textContent = "Máy đang xử lý rác. Bạn có thể bấm Hoàn tất; điểm của lượt này được ghi nhận khi máy trả DONE.";
-    } else {
+    {
         ui("sessionStatus").textContent = seconds > 0
             ? `Phiên đang hoạt động · tự kết thúc sau ${seconds}s nếu không bỏ rác hoặc tiếp tục phiên.`
             : "Phiên đã hết thời gian hoạt động. Đang kết thúc…";
