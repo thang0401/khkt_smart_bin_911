@@ -57,7 +57,7 @@ function fixture() {
         performance: { now: () => 0 }, console: { error() {} }, __device: device
     });
     const root = path.join(__dirname, '..');
-    for (const filename of ['New folder/asset/js/config.js', 'New folder/main3.js']) vm.runInContext(
+    for (const filename of ['src/asset/js/config.js', 'src/main3.js']) vm.runInContext(
         fs.readFileSync(path.join(root, filename), 'utf8'), context
     );
     vm.runInContext('pointsDevice = __device; statusDiv = document.getElementById("status"); statusHMDiv = document.getElementById("statusHM");', context);

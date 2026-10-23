@@ -65,7 +65,7 @@ function fixture() {
     const api = { Timestamp, FieldValue: { serverTimestamp: () => ({ serverTime: true }), delete: () => ({ deleteField: true }) } };
     const context = vm.createContext({ TextEncoder, Date, setTimeout, clearTimeout, console: { error() {} }, crypto: { randomUUID } });
     for (const name of ['smartbin-store.js', 'device-controller.js']) vm.runInContext(
-        fs.readFileSync(path.join(__dirname, '..', 'New folder', 'asset', 'js', name), 'utf8'), context
+        fs.readFileSync(path.join(__dirname, '..', 'src', 'asset', 'js', name), 'utf8'), context
     );
     const store = new context.SmartBinStore(db, 'NLS_TN01', api, () => clock);
     data.set('reward_settings/default', { version: 2, points_by_waste_code: { A: 2, B: 3, C: 1 }, session_idle_seconds: 120 });
@@ -109,8 +109,8 @@ async function runTests() {
         const id = await f.store.startSession('001');
         const e = await f.store.prepareDisposal('B', 92, 'device');
         assert.equal(f.data.get('students/001').points_balance, 0);
-        await assert.rejects(f.store.finishSession(id), /Chờ máy/);
-        await assert.rejects(f.store.startSession('002'), /đang xử lý/);
+        assert.equal(await f.store.finishSession(id, 'idle'), false);
+        await assert.rejects(f.store.startSession('002'), /đang có phiên/);
         await assert.rejects(f.store.prepareDisposal('A', 80, 'device'), /lượt rác khác/);
         await assert.rejects(f.store.resetBin(), /đang xử lý/);
         f.advance(150000);
@@ -122,6 +122,56 @@ async function runTests() {
         assert.equal(f.data.get('du_lieu_tram/thong_tin_hien_tai').rac_huu_co, 1);
         assert.equal([...f.data.keys()].filter(k => k.includes('/point_history/')).length, 1);
         assert.equal(f.data.get(`students/001/point_history/${e.event_id}`).points_delta, 3);
+    });
+    await test('starting during an unassigned pending disposal preserves its lock and awards no retroactive points', async () => {
+        const f = fixture();
+        const event = await f.store.prepareDisposal('B', 92, 'device');
+        const id = await f.store.startSession('001');
+        assert.equal(f.data.get('bin_stations/NLS_TN01').pending_event_id, event.event_id);
+        assert.equal(f.data.get(`disposal_events/${event.event_id}`).student_code, null);
+        await f.store.confirmDisposal(event.event_id, 'device');
+        assert.equal(f.data.get('students/001').points_balance, 0);
+        assert.equal(f.data.get('bin_stations/NLS_TN01').active_session_id, id);
+        const next = await f.store.prepareDisposal('A', 91, 'device');
+        await f.store.confirmDisposal(next.event_id, 'device');
+        assert.equal(f.data.get('students/001').points_balance, 2);
+    });
+    await test('pending disposal keeps its original session even after the idle deadline', async () => {
+        const f = fixture();
+        const id = await f.store.startSession('001');
+        const event = await f.store.prepareDisposal('B', 92, 'device');
+        f.advance(150000);
+        await assert.rejects(f.store.startSession('002'), /đang có phiên/);
+        assert.equal(f.data.get('bin_stations/NLS_TN01').active_session_id, id);
+        await f.store.confirmDisposal(event.event_id, 'device');
+        assert.equal(f.data.get('students/001').points_balance, 3);
+        assert.equal(f.data.get('students/002').points_balance, 0);
+    });
+    await test('manual finish during pending work permits next student and DONE credits the original closed session once', async () => {
+        const f = fixture();
+        const first = await f.store.startSession('001');
+        const event = await f.store.prepareDisposal('B', 92, 'device');
+        assert.equal(await f.store.finishSession(first), true);
+        assert.equal(await f.store.finishSession(first), false);
+        const second = await f.store.startSession('002');
+        assert.equal(f.data.get('bin_stations/NLS_TN01').pending_event_id, event.event_id);
+        await f.store.confirmDisposal(event.event_id, 'device');
+        await f.store.confirmDisposal(event.event_id, 'device');
+        assert.equal(f.data.get('students/001').points_balance, 3);
+        assert.equal(f.data.get('students/002').points_balance, 0);
+        assert.equal(f.data.get('bin_stations/NLS_TN01').active_session_id, second);
+        assert.equal(f.data.get('bin_sessions/' + first).status, 'completed');
+        assert.equal(f.data.get('bin_sessions/' + first).points_earned, 3);
+        assert.equal(f.data.get('bin_sessions/' + second).points_earned, 0);
+    });
+    await test('repeated start for the same student reuses the current session without resetting points', async () => {
+        const f = fixture();
+        const id = await f.store.startSession('001');
+        const event = await f.store.prepareDisposal('A', 90, 'device');
+        assert.equal(await f.store.startSession('001'), id);
+        await f.store.confirmDisposal(event.event_id, 'device');
+        assert.equal(await f.store.startSession('001'), id);
+        assert.equal(f.data.get('bin_sessions/' + id).points_earned, 2);
     });
     await test('reward snapshot stays fixed after config change', async () => {
         const f = fixture(); await f.store.startSession('001');

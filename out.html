@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SmartBin · Phân loại xanh, tích điểm hay</title>
-    <link rel="stylesheet" href="New%20folder/asset/css/out.css">
+    <link rel="stylesheet" href="src/asset/css/out.css">
 </head>
 <body>
     <div class="dashboard">
         <!-- Đầu trang -->
         <header class="page-header">
             <div class="brand">
-                <img class="brand-icon" src="New%20folder/asset/img/Huy%20hiệu%20Trường%20Nha%20Trang%20Khánh%20Hòa.svg" alt="Huy hiệu Trường Nha Trang Khánh Hòa" width="53" height="53">
+                <img class="brand-icon" src="src/asset/img/Huy%20hiệu%20Trường%20Nha%20Trang%20Khánh%20Hòa.svg" alt="Huy hiệu Trường Nha Trang Khánh Hòa" width="53" height="53">
                 <div>
                     <span class="eyebrow">THCS NHA TRANG - PHÂN HIỆU THÁI NGUYÊN</span>
                     <h1>SmartBin<span> 2.0</span></h1>
@@ -150,8 +150,8 @@
                             </div>
                         </div>
                         <div class="session-actions">
-                            <button id="startSession" class="button button-primary" type="button" disabled>Bắt đầu tích điểm</button>
-                            <button id="finishSession" class="button button-secondary" type="button" disabled>Hoàn tất</button>
+                            <button id="startSession" class="button button-primary" type="button">Bắt đầu tích điểm</button>
+                            <button id="finishSession" class="button button-secondary" type="button">Hoàn tất</button>
                         </div>
                         <p id="sessionStatus" class="phase-notice" role="status" aria-live="polite">Bấm Bắt đầu trước khi bỏ rác để nhận điểm.</p>
                         <button id="continueSession" class="button button-secondary" type="button" hidden>Tiếp tục phiên</button>
@@ -198,9 +198,9 @@
     <!-- Thư viện, cấu hình, dữ liệu mẫu, rồi khởi tạo trang (giữ đúng thứ tự) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="New%20folder/asset/js/config.js"></script>
-    <script src="New%20folder/asset/js/students.demo.js"></script>
-    <script src="New%20folder/asset/js/smartbin-store.js"></script>
-    <script src="New%20folder/asset/js/out.js"></script>
+    <script src="src/asset/js/config.js"></script>
+    <script src="src/asset/js/students.demo.js"></script>
+    <script src="src/asset/js/smartbin-store.js"></script>
+    <script src="src/asset/js/out.js"></script>
 </body>
 </html>

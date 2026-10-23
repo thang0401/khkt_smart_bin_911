@@ -38,15 +38,18 @@ globalThis.SmartBinStore = class SmartBinStore {
 
     async startSession(code) {
         const ref = this.db.collection("bin_sessions").doc();
-        await this.db.runTransaction(async tx => {
+        return this.db.runTransaction(async tx => {
             const station = this.data(await tx.get(this.station));
             const student = this.data(await tx.get(this.student(code)));
             const settings = this.data(await tx.get(this.settings));
             const previous = station.active_session_id
                 ? this.data(await tx.get(this.session(station.active_session_id))) : null;
-            if (station.pending_event_id) this.fail("Máy đang xử lý rác; chưa thể bắt đầu phiên mới.");
+
             if (student.active !== true) this.fail("Học sinh không còn hoạt động.");
-            if (previous?.status === "active" && this.millis(previous.expires_at) > this.now()) {
+            // Bấm Bắt đầu lần nữa giữ nguyên phiên đang dùng của học sinh.
+            if (previous?.status === "active" && previous.student_code === code &&
+                (station.pending_event_id || this.millis(previous.expires_at) > this.now())) return station.active_session_id;
+            if (previous?.status === "active" && (station.pending_event_id || this.millis(previous.expires_at) > this.now())) {
                 this.fail("Trạm đang có phiên sử dụng. Hãy hoàn tất phiên hiện tại.");
             }
             const idle = this.idle(settings);
@@ -59,9 +62,9 @@ globalThis.SmartBinStore = class SmartBinStore {
                 expires_at: this.timestamp(this.now() + idle * 1000), idle_seconds: idle,
                 points_earned: 0, items_count: 0, latest_points: 0
             });
-            tx.set(this.station, { active_session_id: ref.id, pending_event_id: null, updated_at: this.stamp() }, { merge: true });
+            tx.set(this.station, { active_session_id: ref.id, updated_at: this.stamp() }, { merge: true });
+            return ref.id;
         });
-        return ref.id;
     }
 
     async finishSession(id, reason = "manual") {
@@ -69,7 +72,7 @@ globalThis.SmartBinStore = class SmartBinStore {
             const station = this.data(await tx.get(this.station));
             const session = this.data(await tx.get(this.session(id)));
             if (station.active_session_id !== id || session.status !== "active") return false;
-            if (station.pending_event_id) this.fail("Chờ máy hoàn tất lượt rác hiện tại trước khi kết thúc phiên.");
+            if (reason === "idle" && station.pending_event_id) return false;
             if (reason === "idle" && this.millis(session.expires_at) > this.now()) return false;
             tx.update(this.session(id), {
                 status: reason === "idle" ? "expired" : "completed",
@@ -152,7 +155,7 @@ globalThis.SmartBinStore = class SmartBinStore {
             const history = historyRef ? await tx.get(historyRef) : null;
             if (station.pending_event_id !== id) this.fail("Khóa lượt rác đã thay đổi; cần kiểm tra trạm.");
             if (event.student_code && (!student?.active || session?.student_code !== event.student_code ||
-                session.status !== "active" || session.station_id !== this.stationId || station.active_session_id !== event.session_id)) {
+                !["active", "completed"].includes(session.status) || session.station_id !== this.stationId)) {
                 this.fail("Học sinh hoặc phiên không còn hợp lệ; cần người quản lý kiểm tra lượt rác.");
             }
             if (history?.exists) this.fail("Lịch sử đã tồn tại nhưng lượt rác chưa xác nhận; cần kiểm tra dữ liệu.");
@@ -176,7 +179,9 @@ globalThis.SmartBinStore = class SmartBinStore {
                 tx.update(this.session(event.session_id), {
                     points_earned: Number(session.points_earned || 0) + event.unit_points,
                     items_count: Number(session.items_count || 0) + 1, latest_points: event.unit_points,
-                    last_activity_at: this.stamp(), expires_at: this.timestamp(this.now() + session.idle_seconds * 1000)
+                    ...(session.status === "active" ? {
+                        last_activity_at: this.stamp(), expires_at: this.timestamp(this.now() + session.idle_seconds * 1000)
+                    } : {})
                 });
             }
             tx.update(this.event(id), { status: "confirmed", confirmed_at: this.stamp() });

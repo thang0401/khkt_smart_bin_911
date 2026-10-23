@@ -157,7 +157,7 @@ function renderHistory(records) {
 async function lookupStudent(event, restoreCode) {
     event.preventDefault();
     if (!restoreCode && (studentChangeLocked() || lookupBusy)) {
-        setMessage("studentMessage", "Hoàn tất phiên và chờ máy xử lý xong trước khi đổi học sinh.", true);
+        setMessage("studentMessage", "Hoàn tất phiên hiện tại trước khi đổi học sinh.", true);
         return;
     }
     const enteredCode = restoreCode || ui("studentCode").value.trim();
@@ -192,7 +192,7 @@ async function lookupStudent(event, restoreCode) {
         const doc = await serverRead(db.collection("students").doc(code));
         if (version !== lookupVersion) return;
         if (restoreCode && restoreSessionId !== watchedSessionId) return;
-        if (!restoreCode && (stationState.active_session_id || stationState.pending_event_id)) return;
+        if (!restoreCode && stationState.active_session_id) return;
         if (!doc.exists) {
             setMessage("studentMessage", "Không tìm thấy mã học sinh. Kiểm tra mã hoặc liên hệ người quản lý.", true);
             return;
@@ -304,7 +304,6 @@ function handleKeypadInput(event) {
     input.focus();
     input.setSelectionRange(caret, caret);
 }
-
 function editStudentCode() {
     if (studentChangeLocked() || lookupBusy) return;
     if (ui("studentDetails").hidden) return;
@@ -328,7 +327,7 @@ function stationUsable() {
 }
 
 function studentChangeLocked() {
-    return !!stationState.active_session_id || !!stationState.pending_event_id || sessionActionBusy ||
+    return !!stationState.active_session_id || sessionActionBusy ||
         (STUDENT_DATA_SOURCE === "firebase" && !stationUsable());
 }
 
@@ -337,19 +336,16 @@ function syncSessionControls() {
     const locked = studentChangeLocked() || lookupBusy;
     ui("studentCode").disabled = locked;
     ui("lookupButton").disabled = locked;
-    ui("startSession").disabled = STUDENT_DATA_SOURCE !== "firebase" || !usable || !selectedStudentCode || locked;
-    ui("finishSession").disabled = !usable || !activeSession || !!stationState.pending_event_id || sessionActionBusy;
     ui("btnReset").disabled = !usable || !!stationState.pending_event_id;
     if (ui("connectionMessage")) setMessage("connectionMessage", STUDENT_DATA_SOURCE !== "firebase" ? "" :
-        !usable ? "Đang chờ xác minh dữ liệu từ máy chủ. Tạm khóa đổi học sinh và thao tác phiên." :
-        stationState.pending_event_id ? "Máy đang xử lý rác. Mã học sinh được giữ nguyên đến khi xử lý và đồng bộ xong." : "", !usable);
+        !usable ? "Đang chờ xác minh dữ liệu từ máy chủ. Tạm khóa đổi học sinh." :
+        stationState.pending_event_id ? "Máy đang xử lý lượt rác trước. Bạn có thể bắt đầu phiên; điểm chỉ tính cho các lượt rác gắn với phiên của bạn." : "", !usable);
     ui("sessionPoints").textContent = activeSession ? formatNumber(activeSession.points_earned) : "—";
     ui("latestPoints").textContent = activeSession?.items_count ? `+${formatNumber(activeSession.latest_points)}` : "—";
     if (STUDENT_DATA_SOURCE === "demo") ui("sessionStatus").textContent = "Chế độ demo chỉ để xem giao diện. Chọn firebase trong config.js để bắt đầu phiên thật.";
 }
 
 async function runSessionAction(action) {
-    if (sessionActionBusy || !stationUsable()) return;
     sessionActionBusy = true;
     syncSessionControls();
     try { await action(); }
@@ -358,7 +354,10 @@ async function runSessionAction(action) {
 }
 
 function startStudentSession() {
-    if (!selectedStudentCode || studentChangeLocked() || lookupBusy || STUDENT_DATA_SOURCE !== "firebase") return;
+    if (!selectedStudentCode || !sessionStore) {
+        setMessage("studentMessage", "Tra cứu học sinh và kết nối Firebase trước khi bắt đầu tích điểm.", true);
+        return;
+    }
     const code = selectedStudentCode;
     return runSessionAction(async () => {
         const id = await sessionStore.startSession(code);
@@ -369,8 +368,11 @@ function startStudentSession() {
 }
 
 function finishStudentSession(reason = "manual") {
-    if (!activeSession || !stationUsable() || stationState.pending_event_id) return;
-    const id = watchedSessionId;
+    const id = watchedSessionId || stationState.active_session_id;
+    if (!id || !sessionStore) {
+        setMessage("studentMessage", "Chưa có phiên tích điểm để hoàn tất.", true);
+        return;
+    }
     return runSessionAction(() => sessionStore.finishSession(id, reason));
 }
 
@@ -383,7 +385,7 @@ function refreshSessionTimer() {
     ui("continueSession").hidden = !!stationState.pending_event_id || seconds > warningSeconds || seconds === 0;
     ui("continueSession").disabled = !stationUsable() || sessionActionBusy;
     if (stationState.pending_event_id) {
-        ui("sessionStatus").textContent = "Máy đang xử lý rác. Chờ DONE để ghi nhận điểm; chưa thể đổi hoặc kết thúc phiên.";
+        ui("sessionStatus").textContent = "Máy đang xử lý rác. Bạn có thể bấm Hoàn tất; điểm của lượt này được ghi nhận khi máy trả DONE.";
     } else {
         ui("sessionStatus").textContent = seconds > 0
             ? `Phiên đang hoạt động · tự kết thúc sau ${seconds}s nếu không bỏ rác hoặc tiếp tục phiên.`
@@ -528,6 +530,7 @@ function bindStudentEvents() {
     bindStudentTabs();
     ui("studentForm").addEventListener("submit", lookupStudent);
     ui("studentEmpty").addEventListener("click", handleKeypadInput);
+
     ui("studentCode").addEventListener("focus", editStudentCode);
     ui("loadMoreHistory").addEventListener("click", loadMoreHistory);
     ui("startSession").addEventListener("click", startStudentSession);
